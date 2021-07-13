@@ -138,13 +138,21 @@ class BacklogController extends mixOf(taiga.Controller, taiga.PageMixin, taiga.F
             @confirm.notify("success")
             @analytics.trackEvent("sprint", "create", "create sprint on backlog", 1)
 
-        @scope.$on "usform:new:success", (event, el) =>
+        @scope.$on "usform:new:success", (event, el, position = 'bottom') =>
+            console.log('position', position)
             @.newUs = [el.id]
-            @.loadUserstories(true)
-            @.loadProjectStats()
 
-            @rootscope.$broadcast("filters:update")
-            @analytics.trackEvent("userstory", "create", "create userstory on backlog", 1)
+            load = () =>
+                @.loadUserstories(true)
+                @.loadProjectStats()
+                @rootscope.$broadcast("filters:update")
+                @analytics.trackEvent("userstory", "create", "create userstory on backlog", 1)
+
+            if position == 'top'
+                @.moveUsToTopOfBacklog(el).then () =>
+                    load()
+            else
+                load()
 
         @scope.$on "sprintform:edit:success", =>
             @.loadProjectStats()
@@ -459,23 +467,15 @@ class BacklogController extends mixOf(taiga.Controller, taiga.PageMixin, taiga.F
          return _.map(uses, (x) -> {"us_id": x.id, "order": x[field]})
 
     resetFirstStoryIndicator: () ->
-      for us, key in @scope.userstories
-        @scope.userstories[key].is_first_in_backlog = false
       if @scope.userstories.length > 0
-        @scope.userstories[0].is_first_in_backlog = true
-
-        nextUs = @scope.userstories.find (us) => us.ref == @scope.visibleUserStories[0]
-
-        @.moveUs("sprint:us:move", [us], 0, null, null, nextUs.id)
-
-      @.moveUsToTopOfBacklog(@scope.userstories[index])
+        @scope.first_us_in_backlog = @scope.userstories[0].id
 
     moveUsToTopOfBacklog: (us) ->
-      self = @
+        if @scope.userstories.length
+            nextUs = @scope.userstories[0].id
+            return @.moveUs("sprint:us:move", [us], 0, null, null, nextUs)
 
-      nextUs = @scope.userstories[0].id
-      @.moveUs("sprint:us:move", [us], 0, null, null, nextUs)
-
+        return Promise.resolve()
     # --move us api behavior--
     # If you are moving multiples USs you must use the bulk api
     # If there is only one US you must use patch (repo.save)
